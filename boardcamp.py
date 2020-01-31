@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from gevent import monkey; monkey.patch_all()
 
 import os
@@ -8,6 +9,9 @@ import gevent
 import requests
 from bs4 import BeautifulSoup
 from collections import defaultdict
+
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 site = 'https://tesera.ru'
 tmpdir = 'tmp'
@@ -94,6 +98,39 @@ def get_user_games(user):
 				yield game
 		os.rename(tmpfile, userfile)
 
+##################################################################################
+
+api = "https://api.tesera.ru"
+batch_limit = 100
+
+def get_games2(user):
+	offset = 0
+	while True:
+		res = requests.get(
+			'/'.join((api, 'collections', 'base', 'own', user)),
+			params={'limit': batch_limit, 'offset': offset},
+			verify=False)
+		res.raise_for_status()
+		for game in res.json():
+			yield '=HYPERLINK("%s", "%s")' % (game['game']['teseraUrl'], game['game']['title'])
+		if offset == int(res.headers['x-total-pages'] )- 1: break
+		offset += 1
+
+def get_user_games2(user):
+	tmpfile = '%s/%s.tmp' % (tmpdir, user)
+	userfile = '%s/%s.games' % (tmpdir, user)
+	try:
+		with open(userfile) as f:
+			print("Found saved game list for user", user)
+			for line in f.readlines():
+				yield line.strip()
+	except FileNotFoundError:
+		with open(tmpfile, 'w') as f:
+			for game in get_games2(user):
+				f.write("%s\n" % game)
+				yield game
+		os.rename(tmpfile, userfile)
+
 
 with open('users') as f:
 	users = f.read().splitlines()
@@ -109,13 +146,13 @@ games = defaultdict(list)
 
 # sequential user scan; slow
 # for user in users:
-# 	print('Scraping user %s' % user)
-# 	for game in get_user_games(user):
-# 		games[game].append(user)
+#  	print('Scraping user %s' % user)
+#  	for game in get_user_games2(user):
+#  		games[game].append(user)
 
 def scrape_job(user):
 	print("Scraping user",user)
-	return user, list(get_user_games(user))
+	return user, list(get_user_games2(user))
 
 try:
 	jobs = [gevent.spawn(scrape_job, user) for user in users]
@@ -126,26 +163,29 @@ try:
 		for game in user_games:
 			games[game].append(user)
 
-	with open('oldgames.csv') as f:
-		oldgames = dict(((row[1], row) for row in csv.reader(f)))
+	# try:
+	# 	with open('oldgames.csv') as f:
+	# 		oldgames = dict(((row[1], row) for row in csv.reader(f)))
+	# except FileNotFoundError:
+	# 	oldgames = {}
 
-	for game, owners in games.items():
-		if game in oldgames:
-			oldowners = set(oldgames[game][0].split(','))
-			oldowners.update(owners)
-			oldgames[game][0] = ','.join(oldowners)
-		else:
-			oldgames[game] = [','.join(owners), game, '', '', '', '', '', '', '', '', '', '', '', '', '']
+	# for game, owners in games.items():
+	# 	if game in oldgames:
+	# 		oldowners = set(oldgames[game][0].split(','))
+	# 		oldowners.update(owners)
+	# 		oldgames[game][0] = ','.join(oldowners)
+	# 	else:
+	# 		oldgames[game] = [','.join(owners), game, '', '', '', '', '', '', '', '', '', '', '', '', '']
 
-	with open('newgames.csv', 'w') as f:
-		writer = csv.writer(f)
-		for row in oldgames.values():
-			writer.writerow(row)
-
-	# with open(csvfile, 'w') as f:
+	# with open('newgames.csv', 'w') as f:
 	# 	writer = csv.writer(f)
-	# 	for game, users in sorted(games.items()):
-	# 		writer.writerow([game, ','.join(users)])
+	# 	for row in oldgames.values():
+	# 		writer.writerow(row)
+
+	with open(csvfile, 'w') as f:
+		writer = csv.writer(f)
+		for game, users in sorted(games.items()):
+			writer.writerow([game, ','.join(users)])
 finally:
 	with open('%s/%s' % (tmpdir, game_name_cache_file), 'w') as f:
 		json.dump(game_name_cache, f)
