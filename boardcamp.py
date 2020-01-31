@@ -45,7 +45,7 @@ def get_games(user):
 		res.raise_for_status()
 		for game in res.json():
 			yield '=HYPERLINK("%s", "%s")' % (game['game']['teseraUrl'], game['game']['title'])
-		if offset == int(res.headers['x-total-pages'] )- 1: break
+		if offset == int(res.headers['x-total-pages']) - 1: break
 		offset += 1
 
 def get_user_games(user):
@@ -83,7 +83,7 @@ games = defaultdict(list)
 #  		games[game].append(user)
 
 def scrape_job(user):
-	print("Scraping user",user)
+	print("Scraping user", user)
 	return user, list(get_user_games(user))
 
 try:
