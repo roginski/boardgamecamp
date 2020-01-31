@@ -17,21 +17,6 @@ tmpdir = 'tmp'
 pagedir = 'page_cache'
 csvfile = 'games.csv'
 
-game_name_cache_file = 'game_name_cache.json'
-
-def read_file_if_exists(filename):
-	try:
-		with open(filename) as f:
-			return f.read()
-	except IOError as e:
-		if e.errno == errno.ENOENT:
-			return None
-		else:
-			raise
-
-data = read_file_if_exists(game_name_cache_file)
-game_name_cache = json.loads(data) if data else {}
-
 api = "https://api.tesera.ru"
 batch_limit = 100
 
@@ -86,40 +71,36 @@ def scrape_job(user):
 	print("Scraping user", user)
 	return user, list(get_user_games(user))
 
-try:
-	jobs = [gevent.spawn(scrape_job, user) for user in users]
-	gevent.joinall(jobs)
+jobs = [gevent.spawn(scrape_job, user) for user in users]
+gevent.joinall(jobs)
 
-	for job in jobs:
-		user, user_games = job.value
-		for game in user_games:
-			games[game].append(user)
+for job in jobs:
+	user, user_games = job.value
+	for game in user_games:
+		games[game].append(user)
 
-	# try:
-	# 	with open('oldgames.csv') as f:
-	# 		oldgames = dict(((row[1], row) for row in csv.reader(f)))
-	# except FileNotFoundError:
-	# 	oldgames = {}
+# try:
+# 	with open('oldgames.csv') as f:
+# 		oldgames = dict(((row[1], row) for row in csv.reader(f)))
+# except FileNotFoundError:
+# 	oldgames = {}
 
-	# for game, owners in games.items():
-	# 	if game in oldgames:
-	# 		oldowners = set(oldgames[game][0].split(','))
-	# 		oldowners.update(owners)
-	# 		oldgames[game][0] = ','.join(oldowners)
-	# 	else:
-	# 		oldgames[game] = [','.join(owners), game, '', '', '', '', '', '', '', '', '', '', '', '', '']
+# for game, owners in games.items():
+# 	if game in oldgames:
+# 		oldowners = set(oldgames[game][0].split(','))
+# 		oldowners.update(owners)
+# 		oldgames[game][0] = ','.join(oldowners)
+# 	else:
+# 		oldgames[game] = [','.join(owners), game, '', '', '', '', '', '', '', '', '', '', '', '', '']
 
-	# with open('newgames.csv', 'w') as f:
-	# 	writer = csv.writer(f)
-	# 	for row in oldgames.values():
-	# 		writer.writerow(row)
+# with open('newgames.csv', 'w') as f:
+# 	writer = csv.writer(f)
+# 	for row in oldgames.values():
+# 		writer.writerow(row)
 
-	with open(csvfile, 'w') as f:
-		writer = csv.writer(f)
-		for game, users in sorted(games.items()):
-			writer.writerow([game, ','.join(users)])
-finally:
-	with open('%s/%s' % (tmpdir, game_name_cache_file), 'w') as f:
-		json.dump(game_name_cache, f)
+with open(csvfile, 'w') as f:
+	writer = csv.writer(f)
+	for game, users in sorted(games.items()):
+		writer.writerow([game, ','.join(users)])
 
 print("Successfully created file", csvfile)
