@@ -28,6 +28,8 @@ def get_games(user):
 			params={'limit': batch_limit, 'offset': offset},
 			verify=False)
 		res.raise_for_status()
+		if not res.json():
+			break
 		for game in res.json():
 			yield '=HYPERLINK("%s", "%s")' % (game['game']['teseraUrl'], game['game']['title'])
 		if offset == int(res.headers['x-total-pages']) - 1: break
